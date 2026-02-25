@@ -1,0 +1,9 @@
+[package]
+name = "discord-assist-plugin-api"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serenity = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
