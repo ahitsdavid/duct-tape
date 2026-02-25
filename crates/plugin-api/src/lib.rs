@@ -16,6 +16,19 @@ pub enum PluginError {
     Other(String),
 }
 
+impl PluginError {
+    /// Returns a safe, category-based message suitable for sending to Discord.
+    /// Full error details remain available via `Display` (used in server-side logs).
+    pub fn user_message(&self) -> &str {
+        match self {
+            Self::ApiError(_) => "A plugin API request failed. Check bot logs for details.",
+            Self::ConfigError(_) => "Plugin configuration error. Check bot logs for details.",
+            Self::DiscordError(_) => "Discord API error. Check bot logs for details.",
+            Self::Other(_) => "Something went wrong. Check bot logs for details.",
+        }
+    }
+}
+
 /// Trait that all plugins must implement.
 #[async_trait]
 pub trait Plugin: Send + Sync {

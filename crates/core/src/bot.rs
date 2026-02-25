@@ -86,7 +86,7 @@ impl EventHandler for Bot {
                 Err(e) => {
                     error!("Plugin '{}' error handling '{}': {e}", plugin.name(), command_name);
                     let data = CreateInteractionResponseMessage::new()
-                        .content(format!("Error: {e}"))
+                        .content(e.user_message())
                         .ephemeral(true);
                     let builder = CreateInteractionResponse::Message(data);
                     let _ = command.create_response(&ctx.http, builder).await;
