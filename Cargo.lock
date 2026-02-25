@@ -319,6 +319,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "discord-assist-arr-common"
+version = "0.1.0"
+dependencies = [
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "wiremock",
+]
+
+[[package]]
 name = "discord-assist-claude"
 version = "0.1.0"
 dependencies = [

@@ -5,6 +5,7 @@ members = [
     "crates/plugin-api",
     "plugins/unraid",
     "plugins/claude",
+    "plugins/arr-common",
 ]
 
 [workspace.package]
