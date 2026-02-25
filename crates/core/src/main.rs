@@ -38,6 +38,13 @@ fn build_plugins(config: &Config) -> Vec<Box<dyn Plugin>> {
         info!("Loaded Radarr plugin");
     }
 
+    if let Some(ref cfg) = config.prowlarr {
+        plugins.push(Box::new(
+            discord_assist_prowlarr::ProwlarrPlugin::new(&cfg.api_url, &cfg.api_key),
+        ));
+        info!("Loaded Prowlarr plugin");
+    }
+
     info!("Loaded {} plugins", plugins.len());
     plugins
 }

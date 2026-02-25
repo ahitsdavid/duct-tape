@@ -8,6 +8,7 @@ members = [
     "plugins/arr-common",
     "plugins/sonarr",
     "plugins/radarr",
+    "plugins/prowlarr",
 ]
 
 [workspace.package]

@@ -1,0 +1,17 @@
+[package]
+name = "discord-assist-prowlarr"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+discord-assist-plugin-api = { path = "../../crates/plugin-api" }
+discord-assist-arr-common = { path = "../arr-common" }
+serenity = { workspace = true }
+serde = { workspace = true }
+serde_json = "1"
+async-trait = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+wiremock = "0.6"

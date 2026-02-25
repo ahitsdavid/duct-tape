@@ -16,3 +16,4 @@ discord-assist-unraid = { path = "../../plugins/unraid" }
 discord-assist-claude = { path = "../../plugins/claude" }
 discord-assist-sonarr = { path = "../../plugins/sonarr" }
 discord-assist-radarr = { path = "../../plugins/radarr" }
+discord-assist-prowlarr = { path = "../../plugins/prowlarr" }
