@@ -197,12 +197,21 @@ fn default_true() -> bool {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+#[allow(dead_code)]
 pub struct NotificationsConfig {
-    pub channel_id: u64,
+    pub guild_id: u64,
+    #[serde(default)]
+    pub channel_id: Option<u64>,
     #[serde(default = "default_poll_interval")]
     pub poll_interval_secs: u64,
     #[serde(default = "default_temp_threshold")]
     pub temp_threshold: f64,
+    #[serde(default)]
+    pub grabs_channel_id: Option<u64>,
+    #[serde(default)]
+    pub imports_channel_id: Option<u64>,
+    #[serde(default)]
+    pub alerts_channel_id: Option<u64>,
 }
 
 fn default_poll_interval() -> u64 {
@@ -376,7 +385,7 @@ mod tests {
             [request]
 
             [notifications]
-            channel_id = 1234567890
+            guild_id = 1234567890
 
             [notes]
             vault_path = "/vault"
@@ -396,7 +405,7 @@ mod tests {
         assert!(request.enabled);
 
         let notif = config.notifications.unwrap();
-        assert_eq!(notif.channel_id, 1234567890);
+        assert_eq!(notif.guild_id, 1234567890);
         assert_eq!(notif.poll_interval_secs, 60);
         assert_eq!(notif.temp_threshold, 50.0);
 

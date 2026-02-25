@@ -13,7 +13,7 @@ use tracing::{error, info, warn};
 const MAX_MESSAGE_LEN: usize = 2000;
 
 pub struct NotificationStarter {
-    pub channel_id: u64,
+    pub channel_id: Option<u64>,
     pub poll_interval_secs: u64,
     pub temp_threshold: f64,
     pub sonarr: Option<(String, String)>,
@@ -34,7 +34,7 @@ impl NotificationStarter {
 
 struct NotificationManager {
     http: Arc<Http>,
-    channel_id: ChannelId,
+    channel_id: Option<ChannelId>,
     poll_interval: Duration,
     pollers: Vec<Box<dyn Poller>>,
     shutdown: watch::Receiver<bool>,
@@ -78,7 +78,7 @@ impl NotificationManager {
 
         Self {
             http,
-            channel_id: ChannelId::new(starter.channel_id),
+            channel_id: starter.channel_id.map(ChannelId::new),
             poll_interval: Duration::from_secs(starter.poll_interval_secs),
             pollers,
             shutdown,
@@ -87,7 +87,7 @@ impl NotificationManager {
 
     async fn run(&mut self) {
         info!(
-            "Notification manager started, polling every {}s to channel {}",
+            "Notification manager started, polling every {}s to channel {:?}",
             self.poll_interval.as_secs(),
             self.channel_id
         );
@@ -96,10 +96,16 @@ impl NotificationManager {
             for poller in &mut self.pollers {
                 let events = poller.poll().await;
                 for event in events {
+                    let channel_id = match self.channel_id {
+                        Some(id) => id,
+                        None => {
+                            warn!("No channel_id configured, dropping notification: {}", event.title);
+                            continue;
+                        }
+                    };
                     let mut msg = format!("**[{}]** {}", event.title, event.body);
                     msg.truncate(MAX_MESSAGE_LEN);
-                    if let Err(e) = self
-                        .channel_id
+                    if let Err(e) = channel_id
                         .say(&self.http, &msg)
                         .await
                     {
