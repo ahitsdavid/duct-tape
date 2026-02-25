@@ -309,6 +309,7 @@ dependencies = [
  "anyhow",
  "discord-assist-claude",
  "discord-assist-plugin-api",
+ "discord-assist-radarr",
  "discord-assist-sonarr",
  "discord-assist-unraid",
  "serde",
@@ -355,6 +356,21 @@ dependencies = [
  "async-trait",
  "serenity",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "discord-assist-radarr"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "discord-assist-arr-common",
+ "discord-assist-plugin-api",
+ "serde",
+ "serde_json",
+ "serenity",
+ "tokio",
+ "tracing",
+ "wiremock",
 ]
 
 [[package]]

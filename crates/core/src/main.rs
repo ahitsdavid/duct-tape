@@ -31,6 +31,13 @@ fn build_plugins(config: &Config) -> Vec<Box<dyn Plugin>> {
         info!("Loaded Sonarr plugin");
     }
 
+    if let Some(ref cfg) = config.radarr {
+        plugins.push(Box::new(
+            discord_assist_radarr::RadarrPlugin::new(&cfg.api_url, &cfg.api_key),
+        ));
+        info!("Loaded Radarr plugin");
+    }
+
     info!("Loaded {} plugins", plugins.len());
     plugins
 }
