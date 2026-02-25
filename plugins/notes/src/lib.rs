@@ -67,16 +67,20 @@ impl NotesPlugin {
                     .map(|(i, _)| pos + i)
                     .unwrap_or(content.len());
                 let snippet = content[start..end].replace('\n', " ");
-                results.push(format!("- **{}**: ...{}...", rel.display(), snippet));
+                results.push(format!(
+                    "- **{}**: ...{}...",
+                    rel.display(),
+                    escape_discord(&snippet)
+                ));
             }
         }
 
         if results.is_empty() {
-            Ok(format!("No notes matching \"{}\".", query))
+            Ok(format!("No notes matching \"{}\".", escape_discord(query)))
         } else {
             Ok(format!(
                 "**Search: {}** ({} results)\n{}",
-                query,
+                escape_discord(query),
                 results.len(),
                 results.join("\n")
             ))
@@ -96,7 +100,7 @@ impl NotesPlugin {
 
         let path = match found {
             Some(p) => p,
-            None => return Ok(format!("Note \"{}\" not found.", name)),
+            None => return Ok(format!("Note \"{}\" not found.", escape_discord(name))),
         };
 
         let content = tokio::fs::read_to_string(path)
@@ -482,6 +486,17 @@ async fn walk_md_files(dir: &Path) -> Result<Vec<PathBuf>, PluginError> {
     Ok(files)
 }
 
+fn escape_discord(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('*', "\\*")
+        .replace('_', "\\_")
+        .replace('`', "\\`")
+        .replace('~', "\\~")
+        .replace('|', "\\|")
+        .replace('@', "\\@")
+        .replace('<', "\\<")
+}
+
 fn validate_folder(name: &str) -> bool {
     !name.contains("..")
         && !name.starts_with('/')
@@ -658,5 +673,13 @@ mod tests {
     #[test]
     fn test_sanitize_title_path_traversal() {
         assert_eq!(sanitize_title("../../etc/passwd"), "etc-passwd");
+    }
+
+    #[test]
+    fn test_escape_discord() {
+        assert_eq!(escape_discord("**bold**"), "\\*\\*bold\\*\\*");
+        assert_eq!(escape_discord("@everyone"), "\\@everyone");
+        assert_eq!(escape_discord("<@123>"), "\\<\\@123>");
+        assert_eq!(escape_discord("normal text"), "normal text");
     }
 }
