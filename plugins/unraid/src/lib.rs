@@ -83,21 +83,7 @@ impl Plugin for UnraidPlugin {
                         .required(true),
                     ),
                 )
-                .add_sub_option(
-                    CreateCommandOption::new(
-                        CommandOptionType::SubCommand,
-                        "restart",
-                        "Restart a container",
-                    )
-                    .add_sub_option(
-                        CreateCommandOption::new(
-                            CommandOptionType::String,
-                            "name",
-                            "Container name",
-                        )
-                        .required(true),
-                    ),
-                ),
+                ,
             )
             .add_option(
                 CreateCommandOption::new(
@@ -197,12 +183,46 @@ impl UnraidPlugin {
     ) -> Result<String, PluginError> {
         match (group, subcommand) {
             ("", "status") => {
-                let array = self
+                let status = self
                     .api
-                    .get_array_status()
+                    .get_system_status()
                     .await
                     .map_err(|e| PluginError::ApiError(e.to_string()))?;
-                Ok(format!("**Unraid Status**\nArray: {}", array.state))
+
+                let uptime = status.info.os.uptime
+                    .as_deref()
+                    .unwrap_or("unknown");
+
+                let total_storage: f64 = status.disks.iter().map(|d| d.size).sum();
+                let total_tb = total_storage / 1_099_511_627_776.0;
+
+                let mut msg = format!(
+                    "**{}**\n\
+                     Array: {}\n\
+                     CPU: {} ({} cores / {} threads)\n\
+                     Up since: {}\n\
+                     \n**Disks** ({:.1} TB total)\n",
+                    status.info.os.hostname,
+                    status.array.state,
+                    status.info.cpu.brand,
+                    status.info.cpu.cores,
+                    status.info.cpu.threads,
+                    uptime,
+                    total_tb,
+                );
+
+                for d in &status.disks {
+                    let temp = d.temperature
+                        .map(|t| format!(" {t:.0}C"))
+                        .unwrap_or_default();
+                    let size_tb = d.size / 1_099_511_627_776.0;
+                    msg.push_str(&format!(
+                        "- {} ({:.1} TB) {} [{}]{}\n",
+                        d.name, size_tb, d.disk_type, d.smart_status, temp
+                    ));
+                }
+
+                Ok(msg)
             }
             ("docker", "list") => {
                 let containers = self
@@ -215,12 +235,11 @@ impl UnraidPlugin {
                 }
                 let mut msg = String::from("**Docker Containers**\n");
                 for c in &containers {
-                    let state = c.state.as_deref().unwrap_or(&c.status);
-                    msg.push_str(&format!("- **{}**: {}\n", c.name, state));
+                    msg.push_str(&format!("- **{}**: {} ({})\n", c.display_name(), c.state, c.status));
                 }
                 Ok(msg)
             }
-            ("docker", action @ ("start" | "stop" | "restart")) => {
+            ("docker", action @ ("start" | "stop")) => {
                 let name = options
                     .iter()
                     .find(|o| o.name == "name")
@@ -229,9 +248,19 @@ impl UnraidPlugin {
                         _ => None,
                     })
                     .ok_or_else(|| PluginError::Other("Missing container name".into()))?;
+                // Look up the container ID by name
+                let containers = self
+                    .api
+                    .get_docker_containers()
+                    .await
+                    .map_err(|e| PluginError::ApiError(e.to_string()))?;
+                let container = containers
+                    .iter()
+                    .find(|c| c.display_name().eq_ignore_ascii_case(name))
+                    .ok_or_else(|| PluginError::Other(format!("Container '{name}' not found")))?;
                 let result = self
                     .api
-                    .docker_action(name, action)
+                    .docker_action(&container.id, action)
                     .await
                     .map_err(|e| PluginError::ApiError(e.to_string()))?;
                 Ok(format!("Container **{name}**: {result}"))
