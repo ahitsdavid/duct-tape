@@ -1,0 +1,28 @@
+[discord]
+# Bot token from https://discord.com/developers/applications
+# Can also be set via DISCORD_TOKEN env var
+token = "your-bot-token-here"
+# Your Discord user ID (right-click your name > Copy User ID)
+owner_id = 0
+# Optional: restrict commands to a specific guild (instant registration)
+# guild_id = 0
+
+[unraid]
+api_url = "https://your-unraid-ip/graphql"
+api_key = "your-unraid-api-key"
+
+[claude]
+api_url = "http://your-claude-host:8080"
+# api_key = "optional-api-key"
+
+[sonarr]
+api_url = "http://your-sonarr-host:8989"
+api_key = "your-sonarr-api-key"
+
+[radarr]
+api_url = "http://your-radarr-host:7878"
+api_key = "your-radarr-api-key"
+
+[prowlarr]
+api_url = "http://your-prowlarr-host:9696"
+api_key = "your-prowlarr-api-key"
