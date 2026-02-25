@@ -15,19 +15,25 @@ pub struct ArrClient {
     client: Client,
     base_url: String,
     api_key: String,
+    api_version: String,
 }
 
 impl ArrClient {
     pub fn new(base_url: &str, api_key: &str) -> Self {
+        Self::with_api_version(base_url, api_key, "v3")
+    }
+
+    pub fn with_api_version(base_url: &str, api_key: &str, api_version: &str) -> Self {
         Self {
             client: Client::new(),
             base_url: base_url.trim_end_matches('/').to_string(),
             api_key: api_key.to_string(),
+            api_version: api_version.to_string(),
         }
     }
 
     pub async fn get<T: DeserializeOwned>(&self, endpoint: &str) -> Result<T, ArrError> {
-        let url = format!("{}/api/v3/{}", self.base_url, endpoint.trim_start_matches('/'));
+        let url = format!("{}/api/{}/{}", self.base_url, self.api_version, endpoint.trim_start_matches('/'));
         let resp = self
             .client
             .get(&url)
@@ -49,7 +55,7 @@ impl ArrClient {
         endpoint: &str,
         body: &serde_json::Value,
     ) -> Result<T, ArrError> {
-        let url = format!("{}/api/v3/{}", self.base_url, endpoint.trim_start_matches('/'));
+        let url = format!("{}/api/{}/{}", self.base_url, self.api_version, endpoint.trim_start_matches('/'));
         let resp = self
             .client
             .post(&url)
@@ -68,7 +74,7 @@ impl ArrClient {
     }
 
     pub async fn health(&self) -> Result<bool, ArrError> {
-        let url = format!("{}/api/v3/health", self.base_url);
+        let url = format!("{}/api/{}/health", self.base_url, self.api_version);
         let resp = self
             .client
             .get(&url)

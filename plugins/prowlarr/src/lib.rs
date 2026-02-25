@@ -39,7 +39,7 @@ pub struct ProwlarrPlugin {
 impl ProwlarrPlugin {
     pub fn new(api_url: &str, api_key: &str) -> Self {
         Self {
-            client: ArrClient::new(api_url, api_key),
+            client: ArrClient::with_api_version(api_url, api_key, "v1"),
         }
     }
 }
