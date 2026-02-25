@@ -7,9 +7,16 @@ use discord_assist_plugin_api::Plugin;
 use serenity::prelude::*;
 use tracing::info;
 
-fn build_plugins(_config: &Config) -> Vec<Box<dyn Plugin>> {
-    let plugins: Vec<Box<dyn Plugin>> = Vec::new();
-    // Plugins will be added here as they are implemented
+fn build_plugins(config: &Config) -> Vec<Box<dyn Plugin>> {
+    let mut plugins: Vec<Box<dyn Plugin>> = Vec::new();
+
+    if let Some(ref cfg) = config.unraid {
+        plugins.push(Box::new(
+            discord_assist_unraid::UnraidPlugin::new(&cfg.api_url, &cfg.api_key),
+        ));
+        info!("Loaded Unraid plugin");
+    }
+
     info!("Loaded {} plugins", plugins.len());
     plugins
 }
