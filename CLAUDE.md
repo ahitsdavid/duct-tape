@@ -34,6 +34,22 @@ Watch: `cargo watch -x 'test --workspace'`
 
 ```bash
 cp config.toml.example config.toml  # Edit with your values
+cp .env.example .env                # Add secrets here
 docker compose up -d --build
 docker compose logs -f
 ```
+
+## Secrets
+
+API keys and the Discord token can be set via environment variables instead of `config.toml`.
+Env vars override TOML values when set and non-empty; they only apply to plugin sections
+that already exist in the TOML file. See `.env.example` for the full list.
+
+| Env Var | Overrides |
+|---------|-----------|
+| `DISCORD_TOKEN` | `discord.token` |
+| `UNRAID_API_KEY` | `unraid.api_key` |
+| `CLAUDE_API_KEY` | `claude.api_key` |
+| `SONARR_API_KEY` | `sonarr.api_key` |
+| `RADARR_API_KEY` | `radarr.api_key` |
+| `PROWLARR_API_KEY` | `prowlarr.api_key` |

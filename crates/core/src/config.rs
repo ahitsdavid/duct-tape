@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::env;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -57,8 +58,58 @@ pub struct ProwlarrConfig {
 impl Config {
     pub fn load(path: &str) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(path)?;
-        let config: Config = toml::from_str(&content)?;
+        let mut config: Config = toml::from_str(&content)?;
+        config.apply_env_overrides();
         Ok(config)
+    }
+
+    fn apply_env_overrides(&mut self) {
+        if let Ok(val) = env::var("DISCORD_TOKEN") {
+            if !val.is_empty() {
+                tracing::debug!("Overriding discord.token from DISCORD_TOKEN env var");
+                self.discord.token = val;
+            }
+        }
+        if let Some(ref mut unraid) = self.unraid {
+            if let Ok(val) = env::var("UNRAID_API_KEY") {
+                if !val.is_empty() {
+                    tracing::debug!("Overriding unraid.api_key from UNRAID_API_KEY env var");
+                    unraid.api_key = val;
+                }
+            }
+        }
+        if let Some(ref mut claude) = self.claude {
+            if let Ok(val) = env::var("CLAUDE_API_KEY") {
+                if !val.is_empty() {
+                    tracing::debug!("Overriding claude.api_key from CLAUDE_API_KEY env var");
+                    claude.api_key = Some(val);
+                }
+            }
+        }
+        if let Some(ref mut sonarr) = self.sonarr {
+            if let Ok(val) = env::var("SONARR_API_KEY") {
+                if !val.is_empty() {
+                    tracing::debug!("Overriding sonarr.api_key from SONARR_API_KEY env var");
+                    sonarr.api_key = val;
+                }
+            }
+        }
+        if let Some(ref mut radarr) = self.radarr {
+            if let Ok(val) = env::var("RADARR_API_KEY") {
+                if !val.is_empty() {
+                    tracing::debug!("Overriding radarr.api_key from RADARR_API_KEY env var");
+                    radarr.api_key = val;
+                }
+            }
+        }
+        if let Some(ref mut prowlarr) = self.prowlarr {
+            if let Ok(val) = env::var("PROWLARR_API_KEY") {
+                if !val.is_empty() {
+                    tracing::debug!("Overriding prowlarr.api_key from PROWLARR_API_KEY env var");
+                    prowlarr.api_key = val;
+                }
+            }
+        }
     }
 }
 
@@ -125,5 +176,72 @@ mod tests {
         "#;
         let result: Result<Config, _> = toml::from_str(toml_str);
         assert!(result.is_err());
+    }
+
+    // Env var tests must run serially since they share process-wide state.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    #[test]
+    fn env_override_discord_token() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let toml_str = r#"
+            [discord]
+            token = "file-token"
+            owner_id = 1
+        "#;
+        let mut config: Config = toml::from_str(toml_str).unwrap();
+        env::set_var("DISCORD_TOKEN", "env-token");
+        config.apply_env_overrides();
+        env::remove_var("DISCORD_TOKEN");
+        assert_eq!(config.discord.token, "env-token");
+    }
+
+    #[test]
+    fn env_override_empty_is_ignored() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let toml_str = r#"
+            [discord]
+            token = "file-token"
+            owner_id = 1
+        "#;
+        let mut config: Config = toml::from_str(toml_str).unwrap();
+        env::set_var("DISCORD_TOKEN", "");
+        config.apply_env_overrides();
+        env::remove_var("DISCORD_TOKEN");
+        assert_eq!(config.discord.token, "file-token");
+    }
+
+    #[test]
+    fn env_override_plugin_key() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let toml_str = r#"
+            [discord]
+            token = "t"
+            owner_id = 1
+
+            [sonarr]
+            api_url = "http://sonarr:8989"
+            api_key = "file-key"
+        "#;
+        let mut config: Config = toml::from_str(toml_str).unwrap();
+        env::set_var("SONARR_API_KEY", "env-key");
+        config.apply_env_overrides();
+        env::remove_var("SONARR_API_KEY");
+        assert_eq!(config.sonarr.unwrap().api_key, "env-key");
+    }
+
+    #[test]
+    fn env_override_missing_section_is_ignored() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let toml_str = r#"
+            [discord]
+            token = "t"
+            owner_id = 1
+        "#;
+        let mut config: Config = toml::from_str(toml_str).unwrap();
+        env::set_var("SONARR_API_KEY", "env-key");
+        config.apply_env_overrides();
+        env::remove_var("SONARR_API_KEY");
+        assert!(config.sonarr.is_none());
     }
 }
