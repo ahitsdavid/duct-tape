@@ -1,0 +1,10 @@
+services:
+  discord-assist:
+    build: .
+    container_name: discord-assist
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./config.toml:/app/config.toml:ro
+    environment:
+      - RUST_LOG=discord_assist=info

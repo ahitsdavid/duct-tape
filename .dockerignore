@@ -1,0 +1,10 @@
+target/
+.git/
+.direnv/
+.env
+config.toml
+docs/
+*.md
+flake.nix
+flake.lock
+.envrc
