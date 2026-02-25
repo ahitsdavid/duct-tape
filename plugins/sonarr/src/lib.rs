@@ -105,13 +105,9 @@ impl Plugin for SonarrPlugin {
                         })
                         .ok_or_else(|| PluginError::Other("Missing title".into()))?;
 
-                    let encoded = title
-                        .replace(' ', "%20")
-                        .replace('&', "%26")
-                        .replace('=', "%3D");
                     let results: Vec<Series> = self
                         .client
-                        .get(&format!("series/lookup?term={encoded}"))
+                        .get_with_params("series/lookup", &[("term", title)])
                         .await
                         .map_err(|e| PluginError::ApiError(e.to_string()))?;
 
@@ -171,15 +167,3 @@ impl Plugin for SonarrPlugin {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_urlencoding() {
-        let s = "breaking bad";
-        let encoded = s
-            .replace(' ', "%20")
-            .replace('&', "%26")
-            .replace('=', "%3D");
-        assert_eq!(encoded, "breaking%20bad");
-    }
-}

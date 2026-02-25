@@ -50,6 +50,29 @@ impl ArrClient {
         Ok(resp.json().await?)
     }
 
+    pub async fn get_with_params<T: DeserializeOwned>(
+        &self,
+        endpoint: &str,
+        params: &[(&str, &str)],
+    ) -> Result<T, ArrError> {
+        let url = format!("{}/api/{}/{}", self.base_url, self.api_version, endpoint.trim_start_matches('/'));
+        let resp = self
+            .client
+            .get(&url)
+            .header("X-Api-Key", &self.api_key)
+            .query(params)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            let status = resp.status().as_u16();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(ArrError::Api { status, body });
+        }
+
+        Ok(resp.json().await?)
+    }
+
     pub async fn post<T: DeserializeOwned>(
         &self,
         endpoint: &str,

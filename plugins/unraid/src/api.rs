@@ -59,8 +59,12 @@ impl UnraidApi {
     async fn query<T: serde::de::DeserializeOwned>(
         &self,
         query: &str,
+        variables: Option<&serde_json::Value>,
     ) -> Result<T, UnraidApiError> {
-        let body = serde_json::json!({ "query": query });
+        let mut body = serde_json::json!({ "query": query });
+        if let Some(vars) = variables {
+            body["variables"] = vars.clone();
+        }
         let resp = self
             .client
             .post(&self.base_url)
@@ -85,7 +89,7 @@ impl UnraidApi {
         struct Resp {
             array: ArrayStatus,
         }
-        let resp: Resp = self.query("{ array { state } }").await?;
+        let resp: Resp = self.query("{ array { state } }", None).await?;
         Ok(resp.array)
     }
 
@@ -99,7 +103,7 @@ impl UnraidApi {
             containers: Vec<DockerContainer>,
         }
         let resp: Resp = self
-            .query("{ docker { containers { name status state } } }")
+            .query("{ docker { containers { name status state } } }", None)
             .await?;
         Ok(resp.docker.containers)
     }
@@ -109,28 +113,26 @@ impl UnraidApi {
         container: &str,
         action: &str,
     ) -> Result<String, UnraidApiError> {
-        let query = format!(
-            r#"mutation {{ dockerContainerAction(name: "{container}", action: "{action}") }}"#
-        );
+        let query = "mutation($name: String!, $action: String!) { dockerContainerAction(name: $name, action: $action) }";
+        let variables = serde_json::json!({ "name": container, "action": action });
         #[derive(Deserialize)]
         struct Resp {
             #[serde(rename = "dockerContainerAction")]
             result: String,
         }
-        let resp: Resp = self.query(&query).await?;
+        let resp: Resp = self.query(query, Some(&variables)).await?;
         Ok(resp.result)
     }
 
     pub async fn vm_action(&self, name: &str, action: &str) -> Result<String, UnraidApiError> {
-        let query = format!(
-            r#"mutation {{ vmAction(name: "{name}", action: "{action}") }}"#
-        );
+        let query = "mutation($name: String!, $action: String!) { vmAction(name: $name, action: $action) }";
+        let variables = serde_json::json!({ "name": name, "action": action });
         #[derive(Deserialize)]
         struct Resp {
             #[serde(rename = "vmAction")]
             result: String,
         }
-        let resp: Resp = self.query(&query).await?;
+        let resp: Resp = self.query(query, Some(&variables)).await?;
         Ok(resp.result)
     }
 
@@ -143,7 +145,7 @@ impl UnraidApi {
         struct VmsResp {
             domains: Vec<VmDomain>,
         }
-        let resp: Resp = self.query("{ vms { domains { name state } } }").await?;
+        let resp: Resp = self.query("{ vms { domains { name state } } }", None).await?;
         Ok(resp.vms.domains)
     }
 }

@@ -30,19 +30,26 @@ impl ClaudePlugin {
 }
 
 fn chunk_message(text: &str, max_len: usize) -> Vec<String> {
-    if text.len() <= max_len {
+    if text.chars().count() <= max_len {
         return vec![text.to_string()];
     }
     let mut chunks = Vec::new();
     let mut remaining = text;
     while !remaining.is_empty() {
-        let split_at = if remaining.len() <= max_len {
-            remaining.len()
-        } else {
-            remaining[..max_len]
-                .rfind('\n')
-                .unwrap_or(max_len)
-        };
+        if remaining.chars().count() <= max_len {
+            chunks.push(remaining.to_string());
+            break;
+        }
+        // Find a safe split point: try newline first, then char boundary
+        let byte_limit = remaining
+            .char_indices()
+            .take(max_len)
+            .last()
+            .map(|(i, c)| i + c.len_utf8())
+            .unwrap_or(remaining.len());
+        let split_at = remaining[..byte_limit]
+            .rfind('\n')
+            .unwrap_or(byte_limit);
         chunks.push(remaining[..split_at].to_string());
         remaining = &remaining[split_at..];
         if remaining.starts_with('\n') {
@@ -228,5 +235,15 @@ mod tests {
         assert_eq!(chunks.len(), 2);
         assert_eq!(chunks[0], "a".repeat(1500));
         assert_eq!(chunks[1], "b".repeat(1000));
+    }
+
+    #[test]
+    fn test_chunk_message_multibyte() {
+        // Each emoji is 4 bytes but 1 character
+        let text: String = std::iter::repeat('🦀').take(2500).collect();
+        let chunks = chunk_message(&text, 2000);
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].chars().count(), 2000);
+        assert_eq!(chunks[1].chars().count(), 500);
     }
 }

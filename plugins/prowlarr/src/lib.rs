@@ -147,13 +147,9 @@ impl Plugin for ProwlarrPlugin {
                         })
                         .ok_or_else(|| PluginError::Other("Missing query".into()))?;
 
-                    let encoded = query
-                        .replace(' ', "%20")
-                        .replace('&', "%26")
-                        .replace('=', "%3D");
                     let results: Vec<SearchResult> = self
                         .client
-                        .get(&format!("search?query={encoded}"))
+                        .get_with_params("search", &[("query", query)])
                         .await
                         .map_err(|e| PluginError::ApiError(e.to_string()))?;
 
@@ -213,15 +209,3 @@ impl Plugin for ProwlarrPlugin {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_urlencoding() {
-        let s = "ubuntu iso";
-        let encoded = s
-            .replace(' ', "%20")
-            .replace('&', "%26")
-            .replace('=', "%3D");
-        assert_eq!(encoded, "ubuntu%20iso");
-    }
-}

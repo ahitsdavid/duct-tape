@@ -96,13 +96,9 @@ impl Plugin for RadarrPlugin {
                         })
                         .ok_or_else(|| PluginError::Other("Missing title".into()))?;
 
-                    let encoded = title
-                        .replace(' ', "%20")
-                        .replace('&', "%26")
-                        .replace('=', "%3D");
                     let results: Vec<Movie> = self
                         .client
-                        .get(&format!("movie/lookup?term={encoded}"))
+                        .get_with_params("movie/lookup", &[("term", title)])
                         .await
                         .map_err(|e| PluginError::ApiError(e.to_string()))?;
 
@@ -160,15 +156,3 @@ impl Plugin for RadarrPlugin {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_urlencoding() {
-        let s = "the matrix";
-        let encoded = s
-            .replace(' ', "%20")
-            .replace('&', "%26")
-            .replace('=', "%3D");
-        assert_eq!(encoded, "the%20matrix");
-    }
-}

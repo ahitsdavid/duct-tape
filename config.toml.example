@@ -1,6 +1,5 @@
 [discord]
 # Bot token from https://discord.com/developers/applications
-# Can also be set via DISCORD_TOKEN env var
 token = "your-bot-token-here"
 # Your Discord user ID (right-click your name > Copy User ID)
 owner_id = 0
