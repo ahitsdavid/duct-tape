@@ -2,6 +2,7 @@ pub mod api;
 
 use api::UnraidApi;
 use async_trait::async_trait;
+use chrono::Utc;
 use discord_assist_plugin_api::{Plugin, PluginError};
 use serenity::builder::{
     CreateCommand, CreateCommandOption, CreateInteractionResponse,
@@ -189,9 +190,20 @@ impl UnraidPlugin {
                     .await
                     .map_err(|e| PluginError::ApiError(e.to_string()))?;
 
-                let uptime = status.info.os.uptime
+                let uptime_str = status.info.os.uptime
                     .as_deref()
-                    .unwrap_or("unknown");
+                    .and_then(|s| {
+                        let boot = s.parse::<chrono::DateTime<Utc>>().ok()?;
+                        let dur = Utc::now().signed_duration_since(boot);
+                        let days = dur.num_days();
+                        let hours = dur.num_hours() % 24;
+                        Some(if days > 0 {
+                            format!("{days}d {hours}h")
+                        } else {
+                            format!("{hours}h")
+                        })
+                    })
+                    .unwrap_or_else(|| "unknown".into());
 
                 let total_storage: f64 = status.disks.iter().map(|d| d.size).sum();
                 let total_tb = total_storage / 1_099_511_627_776.0;
@@ -200,14 +212,14 @@ impl UnraidPlugin {
                     "**{}**\n\
                      Array: {}\n\
                      CPU: {} ({} cores / {} threads)\n\
-                     Up since: {}\n\
+                     Uptime: {}\n\
                      \n**Disks** ({:.1} TB total)\n",
                     status.info.os.hostname,
                     status.array.state,
                     status.info.cpu.brand,
                     status.info.cpu.cores,
                     status.info.cpu.threads,
-                    uptime,
+                    uptime_str,
                     total_tb,
                 );
 
@@ -215,10 +227,15 @@ impl UnraidPlugin {
                     let temp = d.temperature
                         .map(|t| format!(" {t:.0}C"))
                         .unwrap_or_default();
-                    let size_tb = d.size / 1_099_511_627_776.0;
+                    let size_bytes = d.size;
+                    let size_str = if size_bytes < 1_099_511_627_776.0 {
+                        format!("{:.1} GB", size_bytes / 1_073_741_824.0)
+                    } else {
+                        format!("{:.1} TB", size_bytes / 1_099_511_627_776.0)
+                    };
                     msg.push_str(&format!(
-                        "- {} ({:.1} TB) {} [{}]{}\n",
-                        d.name, size_tb, d.disk_type, d.smart_status, temp
+                        "- {} ({}) {} [{}]{}\n",
+                        d.name, size_str, d.disk_type, d.smart_status, temp
                     ));
                 }
 
