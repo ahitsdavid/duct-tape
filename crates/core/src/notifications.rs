@@ -347,28 +347,28 @@ impl Poller for UnraidPoller {
             }
 
             // Check array state transitions
-            if let Some(ref last_state) = self.last_array_state {
-                if *last_state != data.array.state {
-                    events.push(NotificationEvent {
-                        title: "Unraid Array".into(),
-                        body: format!("State changed: {} -> {}", last_state, data.array.state),
-                    });
-                }
+            if let Some(ref last_state) = self.last_array_state
+                && *last_state != data.array.state
+            {
+                events.push(NotificationEvent {
+                    title: "Unraid Array".into(),
+                    body: format!("State changed: {} -> {}", last_state, data.array.state),
+                });
             }
             self.last_array_state = Some(data.array.state.clone());
 
             // Check disk temperatures
             for disk in &data.disks {
-                if let Some(temp) = disk.temperature {
-                    if temp >= self.temp_threshold {
-                        events.push(NotificationEvent {
-                            title: "Unraid Disk Temp".into(),
-                            body: format!(
-                                "{}: {:.0}C (threshold: {:.0}C)",
-                                disk.name, temp, self.temp_threshold
-                            ),
-                        });
-                    }
+                if let Some(temp) = disk.temperature
+                    && temp >= self.temp_threshold
+                {
+                    events.push(NotificationEvent {
+                        title: "Unraid Disk Temp".into(),
+                        body: format!(
+                            "{}: {:.0}C (threshold: {:.0}C)",
+                            disk.name, temp, self.temp_threshold
+                        ),
+                    });
                 }
             }
 
@@ -378,13 +378,14 @@ impl Poller for UnraidPoller {
                 let name = container.display_name().to_string();
                 let state = &container.state;
 
-                if let Some(last_state) = self.last_container_states.get(&name) {
-                    if last_state == "RUNNING" && state != "RUNNING" {
-                        events.push(NotificationEvent {
-                            title: "Unraid Container".into(),
-                            body: format!("{name}: {last_state} -> {state}"),
-                        });
-                    }
+                if let Some(last_state) = self.last_container_states.get(&name)
+                    && last_state == "RUNNING"
+                    && state != "RUNNING"
+                {
+                    events.push(NotificationEvent {
+                        title: "Unraid Container".into(),
+                        body: format!("{name}: {last_state} -> {state}"),
+                    });
                 }
                 current_states.insert(name, state.clone());
             }

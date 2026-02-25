@@ -1,5 +1,8 @@
 use serde::Deserialize;
 use std::env;
+use std::fmt;
+
+const REDACTED: &str = "[redacted]";
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -28,7 +31,7 @@ pub struct Config {
     pub notes: Option<NotesConfig>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 pub struct DiscordConfig {
     pub token: String,
     pub owner_id: u64,
@@ -36,35 +39,90 @@ pub struct DiscordConfig {
     pub guild_id: Option<u64>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+impl fmt::Debug for DiscordConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DiscordConfig")
+            .field("token", &REDACTED)
+            .field("owner_id", &self.owner_id)
+            .field("guild_id", &self.guild_id)
+            .finish()
+    }
+}
+
+#[derive(Deserialize, Clone)]
 pub struct UnraidConfig {
     pub api_url: String,
     pub api_key: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+impl fmt::Debug for UnraidConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("UnraidConfig")
+            .field("api_url", &self.api_url)
+            .field("api_key", &REDACTED)
+            .finish()
+    }
+}
+
+#[derive(Deserialize, Clone)]
 pub struct ClaudeConfig {
     pub api_url: String,
     #[serde(default)]
     pub api_key: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+impl fmt::Debug for ClaudeConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ClaudeConfig")
+            .field("api_url", &self.api_url)
+            .field("api_key", &self.api_key.as_ref().map(|_| REDACTED))
+            .finish()
+    }
+}
+
+#[derive(Deserialize, Clone)]
 pub struct SonarrConfig {
     pub api_url: String,
     pub api_key: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+impl fmt::Debug for SonarrConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SonarrConfig")
+            .field("api_url", &self.api_url)
+            .field("api_key", &REDACTED)
+            .finish()
+    }
+}
+
+#[derive(Deserialize, Clone)]
 pub struct RadarrConfig {
     pub api_url: String,
     pub api_key: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+impl fmt::Debug for RadarrConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RadarrConfig")
+            .field("api_url", &self.api_url)
+            .field("api_key", &REDACTED)
+            .finish()
+    }
+}
+
+#[derive(Deserialize, Clone)]
 pub struct ProwlarrConfig {
     pub api_url: String,
     pub api_key: String,
+}
+
+impl fmt::Debug for ProwlarrConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ProwlarrConfig")
+            .field("api_url", &self.api_url)
+            .field("api_key", &REDACTED)
+            .finish()
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -73,7 +131,7 @@ pub struct HealthConfig {
     pub services: Vec<ServiceConfig>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Deserialize, Clone)]
 pub struct ServiceConfig {
     pub name: String,
     pub url: String,
@@ -83,17 +141,47 @@ pub struct ServiceConfig {
     pub key_header: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+impl fmt::Debug for ServiceConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ServiceConfig")
+            .field("name", &self.name)
+            .field("url", &self.url)
+            .field("api_key", &self.api_key.as_ref().map(|_| REDACTED))
+            .field("key_header", &self.key_header)
+            .finish()
+    }
+}
+
+#[derive(Deserialize, Clone)]
 pub struct QbitConfig {
     pub api_url: String,
     pub username: String,
     pub password: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+impl fmt::Debug for QbitConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("QbitConfig")
+            .field("api_url", &self.api_url)
+            .field("username", &self.username)
+            .field("password", &REDACTED)
+            .finish()
+    }
+}
+
+#[derive(Deserialize, Clone)]
 pub struct PlexConfig {
     pub api_url: String,
     pub api_key: String,
+}
+
+impl fmt::Debug for PlexConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PlexConfig")
+            .field("api_url", &self.api_url)
+            .field("api_key", &REDACTED)
+            .finish()
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -139,73 +227,67 @@ impl Config {
     }
 
     fn apply_env_overrides(&mut self) {
-        if let Ok(val) = env::var("DISCORD_TOKEN") {
-            if !val.is_empty() {
-                tracing::debug!("Overriding discord.token from DISCORD_TOKEN env var");
-                self.discord.token = val;
-            }
+        if let Ok(val) = env::var("DISCORD_TOKEN")
+            && !val.is_empty()
+        {
+            tracing::debug!("Overriding discord.token from env");
+            self.discord.token = val;
         }
-        if let Some(ref mut unraid) = self.unraid {
-            if let Ok(val) = env::var("UNRAID_API_KEY") {
-                if !val.is_empty() {
-                    tracing::debug!("Overriding unraid.api_key from UNRAID_API_KEY env var");
-                    unraid.api_key = val;
-                }
-            }
+        if let Some(ref mut unraid) = self.unraid
+            && let Ok(val) = env::var("UNRAID_API_KEY")
+            && !val.is_empty()
+        {
+            tracing::debug!("Overriding unraid.api_key from env");
+            unraid.api_key = val;
         }
-        if let Some(ref mut claude) = self.claude {
-            if let Ok(val) = env::var("CLAUDE_API_KEY") {
-                if !val.is_empty() {
-                    tracing::debug!("Overriding claude.api_key from CLAUDE_API_KEY env var");
-                    claude.api_key = Some(val);
-                }
-            }
+        if let Some(ref mut claude) = self.claude
+            && let Ok(val) = env::var("CLAUDE_API_KEY")
+            && !val.is_empty()
+        {
+            tracing::debug!("Overriding claude.api_key from env");
+            claude.api_key = Some(val);
         }
-        if let Some(ref mut sonarr) = self.sonarr {
-            if let Ok(val) = env::var("SONARR_API_KEY") {
-                if !val.is_empty() {
-                    tracing::debug!("Overriding sonarr.api_key from SONARR_API_KEY env var");
-                    sonarr.api_key = val;
-                }
-            }
+        if let Some(ref mut sonarr) = self.sonarr
+            && let Ok(val) = env::var("SONARR_API_KEY")
+            && !val.is_empty()
+        {
+            tracing::debug!("Overriding sonarr.api_key from env");
+            sonarr.api_key = val;
         }
-        if let Some(ref mut radarr) = self.radarr {
-            if let Ok(val) = env::var("RADARR_API_KEY") {
-                if !val.is_empty() {
-                    tracing::debug!("Overriding radarr.api_key from RADARR_API_KEY env var");
-                    radarr.api_key = val;
-                }
-            }
+        if let Some(ref mut radarr) = self.radarr
+            && let Ok(val) = env::var("RADARR_API_KEY")
+            && !val.is_empty()
+        {
+            tracing::debug!("Overriding radarr.api_key from env");
+            radarr.api_key = val;
         }
-        if let Some(ref mut prowlarr) = self.prowlarr {
-            if let Ok(val) = env::var("PROWLARR_API_KEY") {
-                if !val.is_empty() {
-                    tracing::debug!("Overriding prowlarr.api_key from PROWLARR_API_KEY env var");
-                    prowlarr.api_key = val;
-                }
-            }
+        if let Some(ref mut prowlarr) = self.prowlarr
+            && let Ok(val) = env::var("PROWLARR_API_KEY")
+            && !val.is_empty()
+        {
+            tracing::debug!("Overriding prowlarr.api_key from env");
+            prowlarr.api_key = val;
         }
         if let Some(ref mut qbit) = self.qbit {
-            if let Ok(val) = env::var("QBIT_USERNAME") {
-                if !val.is_empty() {
-                    tracing::debug!("Overriding qbit.username from QBIT_USERNAME env var");
-                    qbit.username = val;
-                }
+            if let Ok(val) = env::var("QBIT_USERNAME")
+                && !val.is_empty()
+            {
+                tracing::debug!("Overriding qbit.username from env");
+                qbit.username = val;
             }
-            if let Ok(val) = env::var("QBIT_PASSWORD") {
-                if !val.is_empty() {
-                    tracing::debug!("Overriding qbit.password from QBIT_PASSWORD env var");
-                    qbit.password = val;
-                }
+            if let Ok(val) = env::var("QBIT_PASSWORD")
+                && !val.is_empty()
+            {
+                tracing::debug!("Overriding qbit.password from env");
+                qbit.password = val;
             }
         }
-        if let Some(ref mut plex) = self.plex {
-            if let Ok(val) = env::var("PLEX_API_KEY") {
-                if !val.is_empty() {
-                    tracing::debug!("Overriding plex.api_key from PLEX_API_KEY env var");
-                    plex.api_key = val;
-                }
-            }
+        if let Some(ref mut plex) = self.plex
+            && let Ok(val) = env::var("PLEX_API_KEY")
+            && !val.is_empty()
+        {
+            tracing::debug!("Overriding plex.api_key from env");
+            plex.api_key = val;
         }
     }
 }
@@ -345,9 +427,10 @@ mod tests {
             owner_id = 1
         "#;
         let mut config: Config = toml::from_str(toml_str).unwrap();
-        env::set_var("DISCORD_TOKEN", "env-token");
+        // SAFETY: test holds ENV_LOCK so no concurrent env mutation.
+        unsafe { env::set_var("DISCORD_TOKEN", "env-token") };
         config.apply_env_overrides();
-        env::remove_var("DISCORD_TOKEN");
+        unsafe { env::remove_var("DISCORD_TOKEN") };
         assert_eq!(config.discord.token, "env-token");
     }
 
@@ -360,9 +443,10 @@ mod tests {
             owner_id = 1
         "#;
         let mut config: Config = toml::from_str(toml_str).unwrap();
-        env::set_var("DISCORD_TOKEN", "");
+        // SAFETY: test holds ENV_LOCK so no concurrent env mutation.
+        unsafe { env::set_var("DISCORD_TOKEN", "") };
         config.apply_env_overrides();
-        env::remove_var("DISCORD_TOKEN");
+        unsafe { env::remove_var("DISCORD_TOKEN") };
         assert_eq!(config.discord.token, "file-token");
     }
 
@@ -379,9 +463,10 @@ mod tests {
             api_key = "file-key"
         "#;
         let mut config: Config = toml::from_str(toml_str).unwrap();
-        env::set_var("SONARR_API_KEY", "env-key");
+        // SAFETY: test holds ENV_LOCK so no concurrent env mutation.
+        unsafe { env::set_var("SONARR_API_KEY", "env-key") };
         config.apply_env_overrides();
-        env::remove_var("SONARR_API_KEY");
+        unsafe { env::remove_var("SONARR_API_KEY") };
         assert_eq!(config.sonarr.unwrap().api_key, "env-key");
     }
 
@@ -394,9 +479,10 @@ mod tests {
             owner_id = 1
         "#;
         let mut config: Config = toml::from_str(toml_str).unwrap();
-        env::set_var("SONARR_API_KEY", "env-key");
+        // SAFETY: test holds ENV_LOCK so no concurrent env mutation.
+        unsafe { env::set_var("SONARR_API_KEY", "env-key") };
         config.apply_env_overrides();
-        env::remove_var("SONARR_API_KEY");
+        unsafe { env::remove_var("SONARR_API_KEY") };
         assert!(config.sonarr.is_none());
     }
 }

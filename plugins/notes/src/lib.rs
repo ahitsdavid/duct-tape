@@ -218,10 +218,10 @@ impl NotesPlugin {
     }
 
     async fn handle_list(&self, folder: Option<&str>) -> Result<String, PluginError> {
-        if let Some(f) = folder {
-            if !validate_folder(f) {
-                return Ok("Invalid folder path.".into());
-            }
+        if let Some(f) = folder
+            && !validate_folder(f)
+        {
+            return Ok("Invalid folder path.".into());
         }
 
         let dir = match folder {
@@ -249,10 +249,10 @@ impl NotesPlugin {
         let mut files = Vec::new();
         while let Ok(Some(entry)) = entries.next_entry().await {
             let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) == Some("md") {
-                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    files.push(name.to_string());
-                }
+            if path.extension().and_then(|e| e.to_str()) == Some("md")
+                && let Some(name) = path.file_name().and_then(|n| n.to_str())
+            {
+                files.push(name.to_string());
             }
         }
 
@@ -468,17 +468,16 @@ async fn walk_md_files(dir: &Path) -> Result<Vec<PathBuf>, PluginError> {
 
             let path = entry.path();
             if file_type.is_dir() {
-                if let Ok(canonical) = tokio::fs::canonicalize(&path).await {
-                    if canonical.starts_with(&canonical_root) {
-                        stack.push(canonical);
-                    }
+                if let Ok(canonical) = tokio::fs::canonicalize(&path).await
+                    && canonical.starts_with(&canonical_root)
+                {
+                    stack.push(canonical);
                 }
-            } else if path.extension().and_then(|e| e.to_str()) == Some("md") {
-                if let Ok(canonical) = tokio::fs::canonicalize(&path).await {
-                    if canonical.starts_with(&canonical_root) {
-                        files.push(canonical);
-                    }
-                }
+            } else if path.extension().and_then(|e| e.to_str()) == Some("md")
+                && let Ok(canonical) = tokio::fs::canonicalize(&path).await
+                && canonical.starts_with(&canonical_root)
+            {
+                files.push(canonical);
             }
         }
     }

@@ -79,27 +79,27 @@ fn build_plugins(config: &Config) -> Vec<Box<dyn Plugin>> {
         info!("Loaded Plex plugin");
     }
 
-    if let Some(ref req_cfg) = config.request {
-        if req_cfg.enabled {
-            if let Some(ref prowlarr) = config.prowlarr {
-                let sonarr = config
-                    .sonarr
-                    .as_ref()
-                    .map(|c| (c.api_url.as_str(), c.api_key.as_str()));
-                let radarr = config
-                    .radarr
-                    .as_ref()
-                    .map(|c| (c.api_url.as_str(), c.api_key.as_str()));
-                plugins.push(Box::new(discord_assist_request::RequestPlugin::new(
-                    &prowlarr.api_url,
-                    &prowlarr.api_key,
-                    sonarr,
-                    radarr,
-                )));
-                info!("Loaded Request plugin");
-            } else {
-                tracing::warn!("Request plugin enabled but [prowlarr] is not configured, skipping");
-            }
+    if let Some(ref req_cfg) = config.request
+        && req_cfg.enabled
+    {
+        if let Some(ref prowlarr) = config.prowlarr {
+            let sonarr = config
+                .sonarr
+                .as_ref()
+                .map(|c| (c.api_url.as_str(), c.api_key.as_str()));
+            let radarr = config
+                .radarr
+                .as_ref()
+                .map(|c| (c.api_url.as_str(), c.api_key.as_str()));
+            plugins.push(Box::new(discord_assist_request::RequestPlugin::new(
+                &prowlarr.api_url,
+                &prowlarr.api_key,
+                sonarr,
+                radarr,
+            )));
+            info!("Loaded Request plugin");
+        } else {
+            tracing::warn!("Request plugin enabled but [prowlarr] is not configured, skipping");
         }
     }
 
