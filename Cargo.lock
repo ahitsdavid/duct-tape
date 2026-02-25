@@ -307,6 +307,7 @@ name = "discord-assist"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "discord-assist-claude",
  "discord-assist-plugin-api",
  "discord-assist-unraid",
  "serde",
@@ -315,6 +316,22 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "discord-assist-claude"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "discord-assist-plugin-api",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serenity",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "wiremock",
 ]
 
 [[package]]

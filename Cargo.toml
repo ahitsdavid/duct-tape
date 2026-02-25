@@ -4,6 +4,7 @@ members = [
     "crates/core",
     "crates/plugin-api",
     "plugins/unraid",
+    "plugins/claude",
 ]
 
 [workspace.package]

@@ -17,6 +17,13 @@ fn build_plugins(config: &Config) -> Vec<Box<dyn Plugin>> {
         info!("Loaded Unraid plugin");
     }
 
+    if let Some(ref cfg) = config.claude {
+        plugins.push(Box::new(
+            discord_assist_claude::ClaudePlugin::new(&cfg.api_url, cfg.api_key.clone()),
+        ));
+        info!("Loaded Claude plugin");
+    }
+
     info!("Loaded {} plugins", plugins.len());
     plugins
 }
