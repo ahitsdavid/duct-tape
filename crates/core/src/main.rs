@@ -131,12 +131,16 @@ fn build_notification_starter(config: &Config) -> Option<NotificationStarter> {
         .map(|c| (c.api_url.clone(), c.api_key.clone()));
 
     Some(NotificationStarter {
-        channel_id: notif.channel_id,
+        guild_id: notif.guild_id,
         poll_interval_secs: notif.poll_interval_secs,
         temp_threshold: notif.temp_threshold,
         sonarr,
         radarr,
         unraid,
+        grabs_channel_id: notif.grabs_channel_id,
+        imports_channel_id: notif.imports_channel_id,
+        alerts_channel_id: notif.alerts_channel_id,
+        fallback_channel_id: notif.channel_id,
     })
 }
 

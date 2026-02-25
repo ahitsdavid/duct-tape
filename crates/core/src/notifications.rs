@@ -1,40 +1,57 @@
 use discord_assist_arr_common::ArrClient;
 use reqwest::Client;
 use serde::Deserialize;
+use serenity::builder::{CreateEmbed, CreateMessage};
 use serenity::http::Http;
-use serenity::model::id::ChannelId;
+use serenity::model::channel::ChannelType;
+use serenity::model::id::{ChannelId, GuildId};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::watch;
 use tracing::{error, info, warn};
 
-/// Discord message length limit.
-const MAX_MESSAGE_LEN: usize = 2000;
+const COLOR_GRAB: u32 = 0xf5c518; // yellow
+const COLOR_IMPORT: u32 = 0x2ecc71; // green
+const COLOR_ALERT_WARN: u32 = 0xe67e22; // orange
+const COLOR_ALERT_CRIT: u32 = 0xe74c3c; // red
+
+#[derive(Clone, Copy)]
+enum NotificationCategory {
+    MediaGrab,
+    MediaImport,
+    ServerAlert,
+}
+
+struct NotificationEvent {
+    category: NotificationCategory,
+    title: String,
+    body: String,
+    color: u32,
+}
 
 pub struct NotificationStarter {
-    pub channel_id: Option<u64>,
+    pub guild_id: u64,
     pub poll_interval_secs: u64,
     pub temp_threshold: f64,
     pub sonarr: Option<(String, String)>,
     pub radarr: Option<(String, String)>,
     pub unraid: Option<(String, String)>,
+    pub grabs_channel_id: Option<u64>,
+    pub imports_channel_id: Option<u64>,
+    pub alerts_channel_id: Option<u64>,
+    pub fallback_channel_id: Option<u64>,
 }
 
-impl NotificationStarter {
-    pub fn start(self, http: Arc<Http>) {
-        let (_shutdown_tx, shutdown_rx) = watch::channel(false);
-
-        tokio::spawn(async move {
-            let mut manager = NotificationManager::from_starter(self, http, shutdown_rx);
-            manager.run().await;
-        });
-    }
+struct ChannelMap {
+    grabs: ChannelId,
+    imports: ChannelId,
+    alerts: ChannelId,
 }
 
 struct NotificationManager {
     http: Arc<Http>,
-    channel_id: Option<ChannelId>,
+    channels: ChannelMap,
     poll_interval: Duration,
     pollers: Vec<Box<dyn Poller>>,
     shutdown: watch::Receiver<bool>,
@@ -46,39 +63,141 @@ trait Poller: Send + Sync {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Vec<NotificationEvent>> + Send + '_>>;
 }
 
-struct NotificationEvent {
-    title: String,
-    body: String,
+async fn resolve_channels(
+    http: &Http,
+    guild_id: u64,
+    grabs_override: Option<u64>,
+    imports_override: Option<u64>,
+    alerts_override: Option<u64>,
+) -> Result<ChannelMap, String> {
+    let gid = GuildId::new(guild_id);
+    let existing = gid
+        .channels(http)
+        .await
+        .map_err(|e| format!("Failed to fetch guild channels: {e}"))?;
+
+    // Find or create "Notifications" category
+    let category_id = if let Some((&id, _)) = existing
+        .iter()
+        .find(|(_, ch)| ch.kind == ChannelType::Category && ch.name == "Notifications")
+    {
+        info!("Found existing Notifications category");
+        id
+    } else {
+        let cat = gid
+            .create_channel(
+                http,
+                serenity::builder::CreateChannel::new("Notifications")
+                    .kind(ChannelType::Category),
+            )
+            .await
+            .map_err(|e| format!("Failed to create Notifications category: {e}"))?;
+        info!("Created Notifications category");
+        cat.id
+    };
+
+    let grabs = find_or_create(http, gid, &existing, category_id, "media-grabs", grabs_override).await?;
+    let imports = find_or_create(http, gid, &existing, category_id, "media-imports", imports_override).await?;
+    let alerts = find_or_create(http, gid, &existing, category_id, "server-alerts", alerts_override).await?;
+
+    Ok(ChannelMap {
+        grabs,
+        imports,
+        alerts,
+    })
+}
+
+async fn find_or_create(
+    http: &Http,
+    gid: GuildId,
+    existing: &HashMap<ChannelId, serenity::model::channel::GuildChannel>,
+    category_id: ChannelId,
+    name: &str,
+    override_id: Option<u64>,
+) -> Result<ChannelId, String> {
+    if let Some(id) = override_id {
+        return Ok(ChannelId::new(id));
+    }
+    if let Some((&id, _)) = existing
+        .iter()
+        .find(|(_, ch)| ch.name == name && ch.parent_id == Some(category_id))
+    {
+        return Ok(id);
+    }
+    let ch = gid
+        .create_channel(
+            http,
+            serenity::builder::CreateChannel::new(name)
+                .kind(ChannelType::Text)
+                .category(category_id),
+        )
+        .await
+        .map_err(|e| format!("Failed to create #{name}: {e}"))?;
+    info!("Created #{name} channel");
+    Ok(ch.id)
+}
+
+impl NotificationStarter {
+    pub fn start(self, http: Arc<Http>) {
+        let (_shutdown_tx, shutdown_rx) = watch::channel(false);
+
+        tokio::spawn(async move {
+            let channels = if let Some(fallback) = self.fallback_channel_id {
+                let ch = ChannelId::new(fallback);
+                ChannelMap {
+                    grabs: ch,
+                    imports: ch,
+                    alerts: ch,
+                }
+            } else {
+                match resolve_channels(
+                    &http,
+                    self.guild_id,
+                    self.grabs_channel_id,
+                    self.imports_channel_id,
+                    self.alerts_channel_id,
+                )
+                .await
+                {
+                    Ok(c) => c,
+                    Err(e) => {
+                        error!("Failed to set up notification channels: {e}");
+                        return;
+                    }
+                }
+            };
+
+            let mut manager = NotificationManager::new(http, channels, &self, shutdown_rx);
+            manager.run().await;
+        });
+    }
 }
 
 impl NotificationManager {
-    fn from_starter(
-        starter: NotificationStarter,
+    fn new(
         http: Arc<Http>,
+        channels: ChannelMap,
+        starter: &NotificationStarter,
         shutdown: watch::Receiver<bool>,
     ) -> Self {
         let mut pollers: Vec<Box<dyn Poller>> = Vec::new();
 
-        if let Some((url, key)) = starter.sonarr {
-            pollers.push(Box::new(ArrHistoryPoller::new("Sonarr", &url, &key, "v3")));
+        if let Some((ref url, ref key)) = starter.sonarr {
+            pollers.push(Box::new(ArrHistoryPoller::new("Sonarr", url, key, "v3")));
             info!("Notifications: added Sonarr history poller");
         }
-        if let Some((url, key)) = starter.radarr {
-            pollers.push(Box::new(ArrHistoryPoller::new("Radarr", &url, &key, "v3")));
+        if let Some((ref url, ref key)) = starter.radarr {
+            pollers.push(Box::new(ArrHistoryPoller::new("Radarr", url, key, "v3")));
             info!("Notifications: added Radarr history poller");
         }
-        if let Some((url, key)) = starter.unraid {
-            pollers.push(Box::new(UnraidPoller::new(
-                &url,
-                &key,
-                starter.temp_threshold,
-            )));
+        if let Some((ref url, ref key)) = starter.unraid {
+            pollers.push(Box::new(UnraidPoller::new(url, key, starter.temp_threshold)));
             info!("Notifications: added Unraid poller");
         }
 
         Self {
             http,
-            channel_id: starter.channel_id.map(ChannelId::new),
+            channels,
             poll_interval: Duration::from_secs(starter.poll_interval_secs),
             pollers,
             shutdown,
@@ -87,34 +206,32 @@ impl NotificationManager {
 
     async fn run(&mut self) {
         info!(
-            "Notification manager started, polling every {}s to channel {:?}",
-            self.poll_interval.as_secs(),
-            self.channel_id
+            "Notification manager started, polling every {}s",
+            self.poll_interval.as_secs()
         );
 
         loop {
             for poller in &mut self.pollers {
                 let events = poller.poll().await;
                 for event in events {
-                    let channel_id = match self.channel_id {
-                        Some(id) => id,
-                        None => {
-                            warn!("No channel_id configured, dropping notification: {}", event.title);
-                            continue;
-                        }
+                    let channel = match event.category {
+                        NotificationCategory::MediaGrab => self.channels.grabs,
+                        NotificationCategory::MediaImport => self.channels.imports,
+                        NotificationCategory::ServerAlert => self.channels.alerts,
                     };
-                    let mut msg = format!("**[{}]** {}", event.title, event.body);
-                    msg.truncate(MAX_MESSAGE_LEN);
-                    if let Err(e) = channel_id
-                        .say(&self.http, &msg)
-                        .await
-                    {
-                        error!("Failed to send notification: {e}");
+
+                    let embed = CreateEmbed::new()
+                        .title(&event.title)
+                        .description(&event.body)
+                        .color(event.color);
+                    let message = CreateMessage::new().embed(embed);
+
+                    if let Err(e) = channel.send_message(&self.http, message).await {
+                        error!("Failed to send notification to {channel}: {e}");
                     }
                 }
             }
 
-            // Wait for poll interval or shutdown signal
             tokio::select! {
                 _ = tokio::time::sleep(self.poll_interval) => {}
                 _ = self.shutdown.changed() => {
@@ -170,7 +287,11 @@ impl Poller for ArrHistoryPoller {
                 .client
                 .get_with_params(
                     "history",
-                    &[("pageSize", "20"), ("sortDirection", "descending"), ("sortKey", "date")],
+                    &[
+                        ("pageSize", "20"),
+                        ("sortDirection", "descending"),
+                        ("sortKey", "date"),
+                    ],
                 )
                 .await;
 
@@ -196,22 +317,23 @@ impl Poller for ArrHistoryPoller {
 
                 self.seen_ids.insert(record.id);
 
-                let title_str = record
-                    .source_title
-                    .as_deref()
-                    .unwrap_or("Unknown");
+                let title_str = record.source_title.as_deref().unwrap_or("Unknown");
 
                 match record.event_type.as_str() {
                     "grabbed" => {
                         events.push(NotificationEvent {
+                            category: NotificationCategory::MediaGrab,
                             title: format!("{} Grab", self.service_name),
                             body: format!("Grabbed: {title_str}"),
+                            color: COLOR_GRAB,
                         });
                     }
                     "downloadFolderImported" => {
                         events.push(NotificationEvent {
+                            category: NotificationCategory::MediaImport,
                             title: format!("{} Import", self.service_name),
                             body: format!("Imported: {title_str}"),
+                            color: COLOR_IMPORT,
                         });
                     }
                     _ => {}
@@ -322,7 +444,9 @@ impl UnraidPoller {
         let parsed: UnraidGraphQLResponse<UnraidPollData> =
             resp.json().await.map_err(|e| e.to_string())?;
 
-        parsed.data.ok_or_else(|| "No data in response".to_string())
+        parsed
+            .data
+            .ok_or_else(|| "No data in response".to_string())
     }
 }
 
@@ -357,8 +481,10 @@ impl Poller for UnraidPoller {
                 && *last_state != data.array.state
             {
                 events.push(NotificationEvent {
-                    title: "Unraid Array".into(),
-                    body: format!("State changed: {} -> {}", last_state, data.array.state),
+                    category: NotificationCategory::ServerAlert,
+                    title: "Array State Changed".into(),
+                    body: format!("{} -> {}", last_state, data.array.state),
+                    color: COLOR_ALERT_WARN,
                 });
             }
             self.last_array_state = Some(data.array.state.clone());
@@ -369,11 +495,13 @@ impl Poller for UnraidPoller {
                     && temp >= self.temp_threshold
                 {
                     events.push(NotificationEvent {
-                        title: "Unraid Disk Temp".into(),
+                        category: NotificationCategory::ServerAlert,
+                        title: "Disk Temperature Warning".into(),
                         body: format!(
                             "{}: {:.0}C (threshold: {:.0}C)",
                             disk.name, temp, self.temp_threshold
                         ),
+                        color: COLOR_ALERT_CRIT,
                     });
                 }
             }
@@ -389,8 +517,10 @@ impl Poller for UnraidPoller {
                     && state != "RUNNING"
                 {
                     events.push(NotificationEvent {
-                        title: "Unraid Container".into(),
+                        category: NotificationCategory::ServerAlert,
+                        title: "Container Down".into(),
                         body: format!("{name}: {last_state} -> {state}"),
+                        color: COLOR_ALERT_CRIT,
                     });
                 }
                 current_states.insert(name, state.clone());
