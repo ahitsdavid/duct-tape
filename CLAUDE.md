@@ -20,6 +20,11 @@ Watch: `cargo watch -x 'test --workspace'`
 - `plugins/radarr/` -- Radarr movie management
 - `plugins/prowlarr/` -- Prowlarr indexer management
 - `plugins/arr-common/` -- Shared *arr REST client
+- `plugins/health/` -- Service health checks (ping configured endpoints)
+- `plugins/qbit/` -- qBittorrent torrent management (cookie-based auth)
+- `plugins/plex/` -- Plex media server status, recent, streams
+- `plugins/request/` -- Cross-plugin media request workflow (Prowlarr search -> Sonarr/Radarr add)
+- `plugins/notes/` -- Obsidian vault notes (DM-only: search, read, create, list)
 
 ## Adding a New Plugin
 
@@ -53,3 +58,6 @@ that already exist in the TOML file. See `.env.example` for the full list.
 | `SONARR_API_KEY` | `sonarr.api_key` |
 | `RADARR_API_KEY` | `radarr.api_key` |
 | `PROWLARR_API_KEY` | `prowlarr.api_key` |
+| `QBIT_USERNAME` | `qbit.username` |
+| `QBIT_PASSWORD` | `qbit.password` |
+| `PLEX_API_KEY` | `plex.api_key` |

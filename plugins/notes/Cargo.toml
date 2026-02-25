@@ -1,0 +1,11 @@
+[package]
+name = "discord-assist-notes"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+discord-assist-plugin-api = { path = "../../crates/plugin-api" }
+serenity = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true, features = ["fs"] }

@@ -9,6 +9,11 @@ members = [
     "plugins/sonarr",
     "plugins/radarr",
     "plugins/prowlarr",
+    "plugins/health",
+    "plugins/qbit",
+    "plugins/plex",
+    "plugins/request",
+    "plugins/notes",
 ]
 
 [workspace.package]

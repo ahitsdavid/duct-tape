@@ -14,6 +14,18 @@ pub struct Config {
     pub radarr: Option<RadarrConfig>,
     #[serde(default)]
     pub prowlarr: Option<ProwlarrConfig>,
+    #[serde(default)]
+    pub health: Option<HealthConfig>,
+    #[serde(default)]
+    pub qbit: Option<QbitConfig>,
+    #[serde(default)]
+    pub plex: Option<PlexConfig>,
+    #[serde(default)]
+    pub request: Option<RequestConfig>,
+    #[serde(default)]
+    pub notifications: Option<NotificationsConfig>,
+    #[serde(default)]
+    pub notes: Option<NotesConfig>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -53,6 +65,69 @@ pub struct RadarrConfig {
 pub struct ProwlarrConfig {
     pub api_url: String,
     pub api_key: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct HealthConfig {
+    #[serde(default)]
+    pub services: Vec<ServiceConfig>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ServiceConfig {
+    pub name: String,
+    pub url: String,
+    #[serde(default)]
+    pub api_key: Option<String>,
+    #[serde(default)]
+    pub key_header: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct QbitConfig {
+    pub api_url: String,
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct PlexConfig {
+    pub api_url: String,
+    pub api_key: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct RequestConfig {
+    /// If true (default), the request plugin is enabled.
+    /// Requires [prowlarr] to be configured. Optionally uses [sonarr] and [radarr].
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct NotificationsConfig {
+    pub channel_id: u64,
+    #[serde(default = "default_poll_interval")]
+    pub poll_interval_secs: u64,
+    #[serde(default = "default_temp_threshold")]
+    pub temp_threshold: f64,
+}
+
+fn default_poll_interval() -> u64 {
+    60
+}
+
+fn default_temp_threshold() -> f64 {
+    50.0
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct NotesConfig {
+    pub vault_path: String,
 }
 
 impl Config {
@@ -107,6 +182,28 @@ impl Config {
                 if !val.is_empty() {
                     tracing::debug!("Overriding prowlarr.api_key from PROWLARR_API_KEY env var");
                     prowlarr.api_key = val;
+                }
+            }
+        }
+        if let Some(ref mut qbit) = self.qbit {
+            if let Ok(val) = env::var("QBIT_USERNAME") {
+                if !val.is_empty() {
+                    tracing::debug!("Overriding qbit.username from QBIT_USERNAME env var");
+                    qbit.username = val;
+                }
+            }
+            if let Ok(val) = env::var("QBIT_PASSWORD") {
+                if !val.is_empty() {
+                    tracing::debug!("Overriding qbit.password from QBIT_PASSWORD env var");
+                    qbit.password = val;
+                }
+            }
+        }
+        if let Some(ref mut plex) = self.plex {
+            if let Ok(val) = env::var("PLEX_API_KEY") {
+                if !val.is_empty() {
+                    tracing::debug!("Overriding plex.api_key from PLEX_API_KEY env var");
+                    plex.api_key = val;
                 }
             }
         }
@@ -165,6 +262,58 @@ mod tests {
         assert!(config.sonarr.is_some());
         assert!(config.radarr.is_some());
         assert!(config.prowlarr.is_some());
+    }
+
+    #[test]
+    fn parse_new_plugins_config() {
+        let toml_str = r#"
+            [discord]
+            token = "t"
+            owner_id = 1
+
+            [health]
+            [[health.services]]
+            name = "Sonarr"
+            url = "http://sonarr:8989"
+            api_key = "key"
+            key_header = "X-Api-Key"
+
+            [qbit]
+            api_url = "http://qbit:8080"
+            username = "admin"
+            password = "pass"
+
+            [plex]
+            api_url = "http://plex:32400"
+            api_key = "plex-token"
+
+            [prowlarr]
+            api_url = "http://prowlarr:9696"
+            api_key = "prowlarr-key"
+
+            [request]
+
+            [notifications]
+            channel_id = 1234567890
+        "#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        let health = config.health.unwrap();
+        assert_eq!(health.services.len(), 1);
+        assert_eq!(health.services[0].name, "Sonarr");
+
+        let qbit = config.qbit.unwrap();
+        assert_eq!(qbit.username, "admin");
+
+        let plex = config.plex.unwrap();
+        assert_eq!(plex.api_url, "http://plex:32400");
+
+        let request = config.request.unwrap();
+        assert!(request.enabled);
+
+        let notif = config.notifications.unwrap();
+        assert_eq!(notif.channel_id, 1234567890);
+        assert_eq!(notif.poll_interval_secs, 60);
+        assert_eq!(notif.temp_threshold, 50.0);
     }
 
     #[test]

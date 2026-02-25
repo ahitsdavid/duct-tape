@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use serenity::builder::CreateCommand;
-use serenity::model::application::CommandInteraction;
+use serenity::model::application::{CommandInteraction, ComponentInteraction};
 use serenity::prelude::Context;
 use thiserror::Error;
 
@@ -45,6 +45,16 @@ pub trait Plugin: Send + Sync {
         ctx: &Context,
         command: &CommandInteraction,
     ) -> Result<bool, PluginError>;
+
+    /// Handle a component interaction (buttons, select menus).
+    /// Return Ok(true) if this plugin handled the interaction, Ok(false) if not.
+    async fn handle_component(
+        &self,
+        _ctx: &Context,
+        _component: &ComponentInteraction,
+    ) -> Result<bool, PluginError> {
+        Ok(false)
+    }
 }
 
 #[cfg(test)]

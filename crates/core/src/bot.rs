@@ -1,3 +1,4 @@
+use crate::notifications::NotificationStarter;
 use discord_assist_plugin_api::Plugin;
 use serenity::async_trait;
 use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage};
@@ -5,20 +6,28 @@ use serenity::model::application::Interaction;
 use serenity::model::gateway::Ready;
 use serenity::model::id::GuildId;
 use serenity::prelude::*;
+use std::sync::Mutex;
 use tracing::{error, info, warn};
 
 pub struct Bot {
     plugins: Vec<Box<dyn Plugin>>,
     owner_id: u64,
     guild_id: Option<u64>,
+    notification_starter: Mutex<Option<NotificationStarter>>,
 }
 
 impl Bot {
-    pub fn new(plugins: Vec<Box<dyn Plugin>>, owner_id: u64, guild_id: Option<u64>) -> Self {
+    pub fn new(
+        plugins: Vec<Box<dyn Plugin>>,
+        owner_id: u64,
+        guild_id: Option<u64>,
+        notification_starter: Option<NotificationStarter>,
+    ) -> Self {
         Self {
             plugins,
             owner_id,
             guild_id,
+            notification_starter: Mutex::new(notification_starter),
         }
     }
 
@@ -57,49 +66,82 @@ impl EventHandler for Bot {
                 }
             }
         }
+
+        // Start notification polling if configured (take once)
+        if let Some(starter) = self.notification_starter.lock().ok().and_then(|mut g| g.take()) {
+            starter.start(ctx.http.clone());
+        }
     }
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
-        let Interaction::Command(command) = interaction else {
-            return;
-        };
-
-        if !self.is_owner(command.user.id.get()) {
-            warn!(
-                "Unauthorized command attempt by {} ({})",
-                command.user.name,
-                command.user.id
-            );
-            let data = CreateInteractionResponseMessage::new()
-                .content("You are not authorized to use this bot.")
-                .ephemeral(true);
-            let builder = CreateInteractionResponse::Message(data);
-            let _ = command.create_response(&ctx.http, builder).await;
-            return;
-        }
-
-        let command_name = command.data.name.clone();
-        for plugin in &self.plugins {
-            match plugin.handle_command(&ctx, &command).await {
-                Ok(true) => return,
-                Ok(false) => continue,
-                Err(e) => {
-                    error!("Plugin '{}' error handling '{}': {e}", plugin.name(), command_name);
+        match interaction {
+            Interaction::Command(command) => {
+                if !self.is_owner(command.user.id.get()) {
+                    warn!(
+                        "Unauthorized command attempt by {} ({})",
+                        command.user.name,
+                        command.user.id
+                    );
                     let data = CreateInteractionResponseMessage::new()
-                        .content(e.user_message())
+                        .content("You are not authorized to use this bot.")
                         .ephemeral(true);
                     let builder = CreateInteractionResponse::Message(data);
                     let _ = command.create_response(&ctx.http, builder).await;
                     return;
                 }
-            }
-        }
 
-        warn!("No plugin handled command: {command_name}");
-        let data = CreateInteractionResponseMessage::new()
-            .content("Unknown command.")
-            .ephemeral(true);
-        let builder = CreateInteractionResponse::Message(data);
-        let _ = command.create_response(&ctx.http, builder).await;
+                let command_name = command.data.name.clone();
+                for plugin in &self.plugins {
+                    match plugin.handle_command(&ctx, &command).await {
+                        Ok(true) => return,
+                        Ok(false) => continue,
+                        Err(e) => {
+                            error!("Plugin '{}' error handling '{}': {e}", plugin.name(), command_name);
+                            let data = CreateInteractionResponseMessage::new()
+                                .content(e.user_message())
+                                .ephemeral(true);
+                            let builder = CreateInteractionResponse::Message(data);
+                            let _ = command.create_response(&ctx.http, builder).await;
+                            return;
+                        }
+                    }
+                }
+
+                warn!("No plugin handled command: {command_name}");
+                let data = CreateInteractionResponseMessage::new()
+                    .content("Unknown command.")
+                    .ephemeral(true);
+                let builder = CreateInteractionResponse::Message(data);
+                let _ = command.create_response(&ctx.http, builder).await;
+            }
+            Interaction::Component(component) => {
+                if !self.is_owner(component.user.id.get()) {
+                    let data = CreateInteractionResponseMessage::new()
+                        .content("You are not authorized to use this bot.")
+                        .ephemeral(true);
+                    let builder = CreateInteractionResponse::Message(data);
+                    let _ = component.create_response(&ctx.http, builder).await;
+                    return;
+                }
+
+                let custom_id = component.data.custom_id.clone();
+                for plugin in &self.plugins {
+                    match plugin.handle_component(&ctx, &component).await {
+                        Ok(true) => return,
+                        Ok(false) => continue,
+                        Err(e) => {
+                            error!("Plugin '{}' error handling component '{}': {e}", plugin.name(), custom_id);
+                            let data = CreateInteractionResponseMessage::new()
+                                .content(e.user_message())
+                                .ephemeral(true);
+                            let builder = CreateInteractionResponse::Message(data);
+                            let _ = component.create_response(&ctx.http, builder).await;
+                            return;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 }
