@@ -6,6 +6,7 @@ members = [
     "plugins/unraid",
     "plugins/claude",
     "plugins/arr-common",
+    "plugins/sonarr",
 ]
 
 [workspace.package]

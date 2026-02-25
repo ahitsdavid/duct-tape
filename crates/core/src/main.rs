@@ -24,6 +24,13 @@ fn build_plugins(config: &Config) -> Vec<Box<dyn Plugin>> {
         info!("Loaded Claude plugin");
     }
 
+    if let Some(ref cfg) = config.sonarr {
+        plugins.push(Box::new(
+            discord_assist_sonarr::SonarrPlugin::new(&cfg.api_url, &cfg.api_key),
+        ));
+        info!("Loaded Sonarr plugin");
+    }
+
     info!("Loaded {} plugins", plugins.len());
     plugins
 }

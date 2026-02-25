@@ -14,3 +14,4 @@ tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
 discord-assist-unraid = { path = "../../plugins/unraid" }
 discord-assist-claude = { path = "../../plugins/claude" }
+discord-assist-sonarr = { path = "../../plugins/sonarr" }
