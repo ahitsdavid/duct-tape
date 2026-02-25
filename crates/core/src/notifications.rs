@@ -31,7 +31,7 @@ struct NotificationEvent {
 }
 
 pub struct NotificationStarter {
-    pub guild_id: u64,
+    pub guild_id: Option<u64>,
     pub poll_interval_secs: u64,
     pub temp_threshold: f64,
     pub sonarr: Option<(String, String)>,
@@ -79,7 +79,7 @@ async fn resolve_channels(
     // Find or create "Notifications" category
     let category_id = if let Some((&id, _)) = existing
         .iter()
-        .find(|(_, ch)| ch.kind == ChannelType::Category && ch.name == "Notifications")
+        .find(|(_, ch)| ch.kind == ChannelType::Category && ch.name.eq_ignore_ascii_case("notifications"))
     {
         info!("Found existing Notifications category");
         id
@@ -143,16 +143,17 @@ impl NotificationStarter {
 
         tokio::spawn(async move {
             let channels = if let Some(fallback) = self.fallback_channel_id {
+                // Legacy mode: all events go to one channel
                 let ch = ChannelId::new(fallback);
                 ChannelMap {
                     grabs: ch,
                     imports: ch,
                     alerts: ch,
                 }
-            } else {
+            } else if let Some(gid) = self.guild_id {
                 match resolve_channels(
                     &http,
-                    self.guild_id,
+                    gid,
                     self.grabs_channel_id,
                     self.imports_channel_id,
                     self.alerts_channel_id,
@@ -165,8 +166,15 @@ impl NotificationStarter {
                         return;
                     }
                 }
+            } else {
+                error!("Notifications: neither guild_id nor channel_id configured, cannot start");
+                return;
             };
 
+            info!(
+                "Notification channels: grabs={}, imports={}, alerts={}",
+                channels.grabs, channels.imports, channels.alerts
+            );
             let mut manager = NotificationManager::new(http, channels, &self, shutdown_rx);
             manager.run().await;
         });

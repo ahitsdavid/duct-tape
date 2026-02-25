@@ -198,7 +198,8 @@ fn default_true() -> bool {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct NotificationsConfig {
-    pub guild_id: u64,
+    #[serde(default)]
+    pub guild_id: Option<u64>,
     #[serde(default)]
     pub channel_id: Option<u64>,
     #[serde(default = "default_poll_interval")]
@@ -404,7 +405,7 @@ mod tests {
         assert!(request.enabled);
 
         let notif = config.notifications.unwrap();
-        assert_eq!(notif.guild_id, 1234567890);
+        assert_eq!(notif.guild_id, Some(1234567890));
         assert_eq!(notif.poll_interval_secs, 60);
         assert_eq!(notif.temp_threshold, 50.0);
 
