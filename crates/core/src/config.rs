@@ -295,6 +295,9 @@ mod tests {
 
             [notifications]
             channel_id = 1234567890
+
+            [notes]
+            vault_path = "/vault"
         "#;
         let config: Config = toml::from_str(toml_str).unwrap();
         let health = config.health.unwrap();
@@ -314,6 +317,9 @@ mod tests {
         assert_eq!(notif.channel_id, 1234567890);
         assert_eq!(notif.poll_interval_secs, 60);
         assert_eq!(notif.temp_threshold, 50.0);
+
+        let notes = config.notes.unwrap();
+        assert_eq!(notes.vault_path, "/vault");
     }
 
     #[test]

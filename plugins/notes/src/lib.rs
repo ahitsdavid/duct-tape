@@ -253,6 +253,7 @@ impl NotesPlugin {
         }
 
         files.sort();
+        let total = files.len();
         files.truncate(25);
 
         if files.is_empty() {
@@ -260,9 +261,12 @@ impl NotesPlugin {
         }
 
         let folder_display = folder.unwrap_or("vault root");
-        let mut msg = format!("**Notes in {}** ({})\n", folder_display, files.len());
+        let mut msg = format!("**Notes in {}** ({})\n", folder_display, total);
         for f in &files {
             msg.push_str(&format!("- {f}\n"));
+        }
+        if total > 25 {
+            msg.push_str(&format!("*...and {} more*\n", total - 25));
         }
         Ok(msg)
     }
@@ -433,8 +437,11 @@ fn extract_string_option<'a>(value: &'a ResolvedValue<'a>, name: &str) -> Option
 }
 
 async fn walk_md_files(dir: &Path) -> Result<Vec<PathBuf>, PluginError> {
+    let canonical_root = tokio::fs::canonicalize(dir)
+        .await
+        .map_err(|e| PluginError::Other(format!("Cannot resolve vault path: {e}")))?;
     let mut files = Vec::new();
-    let mut stack = vec![dir.to_path_buf()];
+    let mut stack = vec![canonical_root.clone()];
 
     while let Some(current) = stack.pop() {
         let mut entries = match tokio::fs::read_dir(&current).await {
@@ -457,9 +464,17 @@ async fn walk_md_files(dir: &Path) -> Result<Vec<PathBuf>, PluginError> {
 
             let path = entry.path();
             if file_type.is_dir() {
-                stack.push(path);
+                if let Ok(canonical) = tokio::fs::canonicalize(&path).await {
+                    if canonical.starts_with(&canonical_root) {
+                        stack.push(canonical);
+                    }
+                }
             } else if path.extension().and_then(|e| e.to_str()) == Some("md") {
-                files.push(path);
+                if let Ok(canonical) = tokio::fs::canonicalize(&path).await {
+                    if canonical.starts_with(&canonical_root) {
+                        files.push(canonical);
+                    }
+                }
             }
         }
     }
@@ -636,5 +651,12 @@ mod tests {
         assert!(!validate_folder("../evil"));
         assert!(!validate_folder("/absolute"));
         assert!(!validate_folder("foo/../bar"));
+        assert!(!validate_folder("foo/.."));
+        assert!(!validate_folder(".."));
+    }
+
+    #[test]
+    fn test_sanitize_title_path_traversal() {
+        assert_eq!(sanitize_title("../../etc/passwd"), "etc-passwd");
     }
 }
