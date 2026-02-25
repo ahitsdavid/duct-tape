@@ -197,7 +197,6 @@ fn default_true() -> bool {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-#[allow(dead_code)]
 pub struct NotificationsConfig {
     pub guild_id: u64,
     #[serde(default)]
