@@ -74,9 +74,15 @@ api_key = "your-plex-token"
 vault_path = "/vault"
 
 [notifications]
-# Discord channel ID for notification messages
-channel_id = 0
+# Guild ID where notification channels will be auto-created
+guild_id = 0
 # How often to poll services (seconds, default: 60)
 poll_interval_secs = 60
 # Disk temperature alert threshold in Celsius (default: 50)
 temp_threshold = 50
+# Optional: override auto-created channels with specific channel IDs
+# grabs_channel_id = 0
+# imports_channel_id = 0
+# alerts_channel_id = 0
+# Legacy: send all notifications to one channel (no auto-creation)
+# channel_id = 0
